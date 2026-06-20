@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments (Virtualenv)
+.venv/
+venv/
+env/
+ENV/
+
+# Configuration (Sensitive data)
+.env
+.env.local
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
