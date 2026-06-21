@@ -57,9 +57,14 @@ class MarketMonitor:
         self.telegram_chat_id = os.environ.get("TELEGRAM_ALERT_CHAT_ID") or os.environ.get("TELEGRAM_ADMIN_CHAT_ID")
         self.admin_chat_id = os.environ.get("TELEGRAM_ADMIN_CHAT_ID") or self.telegram_chat_id
         self.tr_lookback = int(os.environ.get("TR_LOOKBACK", "60"))
+        vn30 = [
+            "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",
+            "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB",
+            "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"
+        ]
         self.default_watchlist: list[dict[str, Any]] = [
             {"ticker": t, "entry": None, "sl_manual": None, "status": "WATCH"}
-            for t in ["TCB", "HPG", "SSI", "VHM", "VCB"]
+            for t in vn30
         ]
         # Caches (reset daily via MonitorState)
         self.history_cache: dict[str, pd.DataFrame] = {}
