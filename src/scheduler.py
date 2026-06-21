@@ -1,11 +1,15 @@
 from __future__ import annotations
 import os
 import time
+import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .market_api_adapter import create_market_data_provider
 from .monitor import MarketMonitor
 import pandas as pd
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 def read_watchlist_from_csv(url: str) -> list[dict[str, Any]]:
@@ -65,14 +69,34 @@ def read_watchlist_from_csv(url: str) -> list[dict[str, Any]]:
         return []
 
 
+def _is_market_hours() -> bool:
+    """Check if current time is within VN market hours (09:00 - 15:00)."""
+    now = datetime.datetime.now(tz=VN_TZ)
+    market_open = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    market_close = now.replace(hour=15, minute=0, second=0, microsecond=0)
+    # Skip weekends
+    if now.weekday() >= 5:
+        return False
+    return market_open <= now <= market_close
+
+
 def run_loop(interval_seconds: int = 60) -> None:
     provider = create_market_data_provider()
     monitor = MarketMonitor(provider)
 
     try:
         while True:
-            monitor.run_cycle()
-            time.sleep(interval_seconds)
+            if _is_market_hours():
+                cycle_start = time.time()
+                monitor.run_cycle()
+                elapsed = time.time() - cycle_start
+                sleep_time = max(0, interval_seconds - elapsed)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+            else:
+                # Outside market hours, check every 5 minutes
+                print(f"Outside market hours. Next check in 5 minutes...")
+                time.sleep(300)
     except KeyboardInterrupt:
         print("Scheduler stopped by user")
 

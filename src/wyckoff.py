@@ -2,7 +2,10 @@ from __future__ import annotations
 import datetime
 import math
 from typing import Any
+from zoneinfo import ZoneInfo
 import pandas as pd
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 # ---------------------------------------------------------------------------
@@ -33,9 +36,15 @@ def _parse_time(t: str) -> datetime.time:
 def _get_current_slot(timeframe: str, current_time: datetime.time) -> dict | None:
     """Find which H1/H4 slot the current_time falls into.
 
-    Returns the slot dict or None if outside trading hours.
+    If current_time is exactly the end of a slot, it falls into that slot (candle close).
+    Otherwise, it falls into the slot where start <= current_time < end.
     """
     slots = H1_SLOTS if timeframe == "H1" else H4_SLOTS
+    # Prioritize slot ends (candle close)
+    for slot in slots:
+        if current_time == _parse_time(slot["end"]):
+            return slot
+
     for slot in slots:
         start = _parse_time(slot["start"])
         end = _parse_time(slot["end"])
@@ -106,7 +115,7 @@ def calculate_virtual_candle(
         return None
 
     if current_time is None:
-        current_time = datetime.datetime.now().time()
+        current_time = datetime.datetime.now(tz=VN_TZ).time()
 
     # Find current slot
     slot = _get_current_slot(timeframe, current_time)
@@ -122,8 +131,8 @@ def calculate_virtual_candle(
         mask = (candle_times >= slot_start) & (candle_times < slot_end)
         slot_candles = df[mask]
     else:
-        # Fallback: use all candles
-        slot_candles = df
+        # No parseable time column — cannot filter by slot, return None
+        return None
 
     if slot_candles.empty:
         return None
@@ -138,7 +147,7 @@ def calculate_virtual_candle(
     # Calculate elapsed time
     current_minutes = _time_to_minutes(current_time)
     slot_start_minutes = _time_to_minutes(slot_start)
-    elapsed_minutes = max(1, current_minutes - slot_start_minutes)
+    elapsed_minutes = min(slot["duration"], max(1, current_minutes - slot_start_minutes))
 
     return {
         "timeframe": timeframe,
@@ -278,6 +287,7 @@ def is_wyckoff_buy_setup(
     tr_low: float,
     tr_low_range: tuple[float, float],
     daily_history: pd.DataFrame,
+    tr_high: float = 0.0,
 ) -> dict | None:
     """Detect Spring (buy) signal for WATCH stocks.
 
@@ -305,8 +315,12 @@ def is_wyckoff_buy_setup(
     vol = virtual_candle["volume"]
     candle_range = h - low
 
-    # Price must be near or below TR low zone
-    if c > tr_low_range[1] and low > tr_low_range[1]:
+    # Price must penetrate below TR_Low support zone for a true Spring
+    # The low must touch or break below the TR_Low zone lower bound
+    if low > tr_low_range[1]:
+        return None
+    # Close must recover back above TR_Low (price rejection = Spring confirmation)
+    if c < tr_low_range[0]:
         return None
 
     # --- Condition 1: Long lower shadow (OR logic, check absolute first) ---
@@ -330,7 +344,10 @@ def is_wyckoff_buy_setup(
     trimmed_mean = _calculate_trimmed_mean_volume(daily_history, periods=20)
     elapsed = virtual_candle.get("elapsed_minutes", 1)
     slot_duration = virtual_candle.get("slot_duration_minutes", 60)
-    is_spike, vol_ratio_pct = _check_volume_spike(vol, trimmed_mean, elapsed, slot_duration, multiplier=1.3)
+    # Scale daily average volume to slot by using total daily trading minutes as base (240 for D1/H1, 255 for H4)
+    tf = virtual_candle.get("timeframe", "H1")
+    total_day_minutes = 255.0 if tf == "H4" else 240.0
+    is_spike, vol_ratio_pct = _check_volume_spike(vol, trimmed_mean, elapsed, total_day_minutes, multiplier=1.3)
 
     if not is_spike:
         return None
@@ -350,6 +367,7 @@ def is_wyckoff_buy_setup(
         "vol_ratio_pct": vol_ratio_pct,
         "trimmed_mean_vol": round(trimmed_mean, 0),
         "tr_low": tr_low,
+        "tr_high": tr_high,
         "elapsed_minutes": elapsed,
         "slot_duration_minutes": slot_duration,
     }
@@ -437,9 +455,16 @@ def is_wyckoff_sell_setup(
     trimmed_mean = _calculate_trimmed_mean_volume(daily_history, periods=20)
     elapsed = virtual_candle.get("elapsed_minutes", 1)
     slot_duration = virtual_candle.get("slot_duration_minutes", 60)
-    is_spike, vol_ratio_pct = _check_volume_spike(vol, trimmed_mean, elapsed, slot_duration, multiplier=1.3)
+    # Scale daily average volume to slot by using total daily trading minutes as base (240 for D1/H1, 255 for H4)
+    tf = virtual_candle.get("timeframe", "H1")
+    total_day_minutes = 255.0 if tf == "H4" else 240.0
+    is_spike, vol_ratio_pct = _check_volume_spike(vol, trimmed_mean, elapsed, total_day_minutes, multiplier=1.3)
 
     if not is_spike:
+        return None
+
+    # Close must fall back below TR_High for a true Upthrust
+    if c >= tr_high:
         return None
 
     return {

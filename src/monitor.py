@@ -3,17 +3,22 @@ import datetime
 import os
 import traceback
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from .market_api_adapter import MarketDataProvider, create_market_data_provider
 from .telegram_alerts import send_telegram
 from .wyckoff import (
+    _normalize_ticker_data,
+    _parse_time,
     calculate_trading_range,
     calculate_virtual_candle,
     is_wyckoff_buy_setup,
     is_wyckoff_sell_setup,
 )
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 class MonitorState:
@@ -24,13 +29,13 @@ class MonitorState:
     """
 
     def __init__(self) -> None:
-        self.date = datetime.date.today()
+        self.date = datetime.datetime.now(tz=VN_TZ).date()
         self.alerts_sent: dict[str, set[str]] = {}
         self.consecutive_failures = 0
         self.admin_alert_sent = False
 
     def reset_if_new_day(self) -> None:
-        today = datetime.date.today()
+        today = datetime.datetime.now(tz=VN_TZ).date()
         if today != self.date:
             self.date = today
             self.alerts_sent.clear()
@@ -123,7 +128,7 @@ class MarketMonitor:
         shadow_pct = signal.get("shadow_pct", 0.0)
         current_vol = signal.get("current_vol", 0)
         vol_ratio = signal.get("vol_ratio_pct", 0.0)
-        now = datetime.datetime.now().strftime("%H:%M:%S")
+        now = datetime.datetime.now(tz=VN_TZ).strftime("%H:%M:%S")
 
         # Map signal type to Vietnamese action
         action_map = {
@@ -159,9 +164,15 @@ class MarketMonitor:
     def run_cycle(self) -> None:
         """Execute one monitoring cycle (called every minute)."""
         self.state.reset_if_new_day()
+        # Reset data caches when day changes to avoid stale data
+        current_date = datetime.datetime.now(tz=VN_TZ).date()
+        if hasattr(self, '_last_cache_date') and self._last_cache_date != current_date:
+            self.history_cache.clear()
+            self.tr_cache.clear()
+        self._last_cache_date = current_date
         watchlist = self.load_watchlist()
-        current_time = datetime.datetime.now().time()
-        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        current_time = datetime.datetime.now(tz=VN_TZ).time()
+        today_str = datetime.datetime.now(tz=VN_TZ).strftime("%Y-%m-%d")
 
         try:
             # Get current prices for all tickers
@@ -205,20 +216,98 @@ class MarketMonitor:
                     print(f"No minute candle data for {ticker}; skipping virtual candle")
                     continue
 
-                # Check both H1 and H4 timeframes
+                # 1. Evaluate D1 timeframe setup independently using today's accumulated minute candles
+                try:
+
+                    df_norm = _normalize_ticker_data(minute_df)
+                    market_start = _parse_time("09:15")
+                    market_end = _parse_time("14:45")
+                    
+                    if "time" in df_norm.columns and pd.api.types.is_datetime64_any_dtype(df_norm["time"]):
+                        candle_times = df_norm["time"].dt.time
+                        today_candles = df_norm[(candle_times >= market_start) & (candle_times <= min(market_end, current_time))]
+                    else:
+                        today_candles = df_norm
+                        
+                    if not today_candles.empty:
+                        d1_open = float(today_candles.iloc[0]["open"])
+                        d1_high = float(today_candles["high"].max())
+                        d1_low = float(today_candles["low"].min())
+                        d1_close = float(today_candles.iloc[-1]["close"])
+                        d1_volume = int(today_candles["volume"].sum())
+
+                        # Calculate elapsed minutes dynamically (excluding lunch break 11:30 - 13:00)
+                        current_min = current_time.hour * 60 + current_time.minute
+                        start_min = 9 * 60 + 15
+                        lunch_start_min = 11 * 60 + 30
+                        lunch_end_min = 13 * 60
+
+                        if current_min < start_min:
+                            elapsed_minutes = 1
+                        elif current_min <= lunch_start_min:
+                            elapsed_minutes = current_min - start_min
+                        elif current_min < lunch_end_min:
+                            elapsed_minutes = 135
+                        else:
+                            elapsed_minutes = 135 + (current_min - lunch_end_min)
+                        elapsed_minutes = min(240, max(1, elapsed_minutes))
+
+                        d1_candle = {
+                            "timeframe": "D1",
+                            "slot_id": "D1",
+                            "slot_start": "09:15",
+                            "slot_end": "14:45",
+                            "slot_duration_minutes": 240,
+                            "elapsed_minutes": elapsed_minutes,
+                            "open": d1_open,
+                            "high": d1_high,
+                            "low": d1_low,
+                            "close": d1_close,
+                            "volume": d1_volume,
+                        }
+
+                        d1_signal = None
+                        if status == "WATCH":
+                            d1_signal = is_wyckoff_buy_setup(
+                                virtual_candle=d1_candle,
+                                tr_low=tr["tr_low"],
+                                tr_low_range=tr["tr_low_range"],
+                                daily_history=daily_hist,
+                                tr_high=tr["tr_high"],
+                            )
+                        elif status == "HOLD":
+                            d1_signal = is_wyckoff_sell_setup(
+                                virtual_candle=d1_candle,
+                                tr_high=tr["tr_high"],
+                                tr_high_range=tr["tr_high_range"],
+                                daily_history=daily_hist,
+                                sl_manual=sl_manual,
+                                tr_low=tr["tr_low"],
+                            )
+
+                        if d1_signal is not None:
+                            anti_spam_key = f"{ticker}:D1:D1"
+                            if not self.state.has_alerted(anti_spam_key):
+                                message = self._build_alert_message(ticker, status, d1_signal)
+                                self._send_alert(message)
+                                self.state.mark_alerted(anti_spam_key)
+                except Exception as d1_exc:
+                    print(f"Error evaluating D1 signal for {ticker}: {d1_exc}")
+
+                # 2. Check H1 and H4 timeframes
                 for tf in ("H1", "H4"):
                     candle = calculate_virtual_candle(minute_df, timeframe=tf, current_time=current_time)
                     if candle is None:
                         continue
 
                     signal = None
-
                     if status == "WATCH":
                         signal = is_wyckoff_buy_setup(
                             virtual_candle=candle,
                             tr_low=tr["tr_low"],
                             tr_low_range=tr["tr_low_range"],
                             daily_history=daily_hist,
+                            tr_high=tr["tr_high"],
                         )
                     elif status == "HOLD":
                         signal = is_wyckoff_sell_setup(
@@ -264,7 +353,7 @@ class MarketMonitor:
         text = (
             "🚨 [HE THONG GAP SU CO NGHIEM TRONG] 🚨\n"
             f"Bot da bi mat ket noi API lien tuc {self.state.consecutive_failures} lan.\n"
-            f"- Thoi gian: {datetime.datetime.now().strftime('%H:%M:%S')}\n"
+            f"- Thoi gian: {datetime.datetime.now(tz=VN_TZ).strftime('%H:%M:%S')}\n"
             f"- Chi tiet loi cuoi cung: {exc}\n"
             "👉 Vui long kiem tra lai ket noi mang cua Server hoac token API ngay lap tuc!"
         )

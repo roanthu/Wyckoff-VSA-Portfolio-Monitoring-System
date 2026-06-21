@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: wyckoff_web
+    command: python src/web_server.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data_cache:/app/data_cache
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Ho_Chi_Minh
+    restart: unless-stopped
+
+  monitor:
+    build: .
+    container_name: wyckoff_monitor
+    command: python src/scheduler.py
+    volumes:
+      - ./data_cache:/app/data_cache
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Ho_Chi_Minh
+    restart: unless-stopped

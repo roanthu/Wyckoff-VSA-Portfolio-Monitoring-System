@@ -136,7 +136,7 @@ class TestWyckoffBuySetup(unittest.TestCase):
             "slot_start": "09:15", "slot_end": "10:15",
             "slot_duration_minutes": 60, "elapsed_minutes": 60, "count": 60,
             "open": 95.0, "high": 96.0, "low": 90.0, "close": 95.5,
-            "volume": 500,  # Below average → no spike
+            "volume": 200,  # Below average -> no spike
         }
         daily = self._make_daily_history(avg_vol=1000)
         signal = is_wyckoff_buy_setup(candle, 91.0, (90.55, 91.45), daily)

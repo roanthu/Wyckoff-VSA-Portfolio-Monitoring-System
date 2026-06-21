@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wyckoff/VSA Portfolio Monitor Dashboard</title>
+    <!-- Modern Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <!-- TradingView Lightweight Charts CDN -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <style>
+        :root {
+            --bg-base: #0a0b0e;
+            --bg-card: rgba(20, 22, 31, 0.7);
+            --bg-sidebar: rgba(13, 15, 23, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            
+            --color-primary: #7c3aed;
+            --color-primary-glow: rgba(124, 58, 237, 0.15);
+            --color-green: #10b981;
+            --color-green-glow: rgba(16, 185, 129, 0.15);
+            --color-red: #f43f5e;
+            --color-red-glow: rgba(244, 63, 94, 0.15);
+            --color-orange: #f59e0b;
+            --color-orange-glow: rgba(245, 158, 11, 0.15);
+            --color-text-main: #f3f4f6;
+            --color-text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--color-text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* Sidebar Glassmorphism */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 10;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+            background: linear-gradient(135deg, var(--color-primary), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--color-text-muted);
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .select-input, .btn {
+            width: 100%;
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--color-text-main);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .select-input:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 10px var(--color-primary-glow);
+        }
+
+        .select-input option {
+            background-color: #0d0f17;
+            color: var(--color-text-main);
+            padding: 10px;
+        }
+
+        .btn {
+            background-color: var(--color-primary);
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            box-shadow: none;
+            color: var(--color-text-main);
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            box-shadow: none;
+        }
+
+        .dates-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        /* Customize scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .date-item {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .date-item:hover, .date-item.active {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--color-primary);
+        }
+
+        .date-item.active::after {
+            content: "•";
+            color: var(--color-primary);
+            font-size: 18px;
+        }
+
+        /* Main Dashboard Window */
+        .dashboard-main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 24px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .header-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-group h1 {
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        .title-group p {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin-top: 4px;
+        }
+
+        .ticker-badge {
+            background: var(--color-primary-glow);
+            color: var(--color-primary);
+            border: 1px solid var(--color-primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* Glassmorphism main dashboard grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 20px;
+            height: 550px; /* Fixed height for stable chart display */
+            flex-shrink: 0; /* Prevent shrinking when analytics section opens */
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-container {
+            flex-grow: 1;
+            min-height: 0;
+            width: 100%;
+        }
+
+        .signals-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 0;
+        }
+
+        .panel-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 100%;
+        }
+
+        .signals-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .signal-item {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.01);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .signal-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: var(--color-primary);
+        }
+
+        .signal-item.spring {
+            border-left: 4px solid var(--color-green);
+        }
+
+        .signal-item.upthrust {
+            border-left: 4px solid var(--color-red);
+        }
+
+        .signal-item.sl {
+            border-left: 4px solid var(--color-orange);
+        }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .signal-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .signal-badge.spring {
+            background: var(--color-green-glow);
+            color: var(--color-green);
+        }
+
+        .signal-badge.upthrust {
+            background: var(--color-red-glow);
+            color: var(--color-red);
+        }
+
+        .signal-badge.sl {
+            background: var(--color-orange-glow);
+            color: var(--color-orange);
+        }
+
+        .signal-time {
+            color: var(--color-text-muted);
+        }
+
+        .signal-price {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .signal-meta {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--color-text-muted);
+            text-align: center;
+            gap: 8px;
+        }
+
+        .empty-state svg {
+            opacity: 0.3;
+        }
+
+        /* Top Bar Indicators */
+        .tr-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .tr-stat-box {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .tr-stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+            margin-bottom: 4px;
+        }
+
+        .tr-stat-value {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .tr-stat-value.low { color: var(--color-green); }
+        .tr-stat-value.high { color: var(--color-red); }
+
+        .timeframe-selector {
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 3px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .timeframe-btn {
+            background: transparent;
+            border: none;
+            color: var(--color-text-muted);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .timeframe-btn.active {
+            background: var(--color-primary);
+            color: var(--color-text-main);
+        }
+
+        /* Simulation Dashboard Styling */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-muted);
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .trade-log-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .trade-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .trade-table th, .trade-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .trade-table th {
+            color: var(--color-text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+
+        .trade-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .result-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .result-badge.win {
+            background: var(--color-green-glow);
+            color: var(--color-green);
+        }
+
+        .result-badge.loss {
+            background: var(--color-red-glow);
+            color: var(--color-red);
+        }
+
+        .result-badge.hold {
+            background: var(--color-orange-glow);
+            color: var(--color-orange);
+        }
+
+        .pnl-positive {
+            color: var(--color-green);
+            font-weight: 600;
+        }
+
+        .pnl-negative {
+            color: var(--color-red);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR PANEL -->
+    <div class="sidebar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 17L9 11L13 15L21 7" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                    <linearGradient id="gradient" x1="3" y1="17" x2="21" y2="7" gradientUnits="userSpaceOnUse">
+                        <stop offset="0" stop-color="#7c3aed"/>
+                        <stop offset="1" stop-color="#a855f7"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            Wyckoff Monitor
+        </div>
+
+        <div class="form-group">
+            <h3 class="section-title">Chọn Cổ Phiếu</h3>
+            <select id="ticker-select" class="select-input">
+                <option value="">Đang tải...</option>
+            </select>
+        </div>
+
+        <div class="tr-stats">
+            <div class="tr-stat-box">
+                <div class="tr-stat-label">Hỗ trợ TR Low</div>
+                <div id="tr-low-val" class="tr-stat-value low">-</div>
+            </div>
+            <div class="tr-stat-box">
+                <div class="tr-stat-label">Kháng cự TR High</div>
+                <div id="tr-high-val" class="tr-stat-value high">-</div>
+            </div>
+        </div>
+
+        <div class="form-group" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+            <h3 class="section-title">Nến 1-Phút Đã Lưu</h3>
+            <div id="dates-list" class="dates-container">
+                <div class="empty-state">Chọn cổ phiếu để xem ngày có sẵn</div>
+            </div>
+        </div>
+
+        <button id="run-backtest-btn" class="btn">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Quét Tín Hiệu Backtest
+        </button>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div class="dashboard-main">
+        <div class="header-panel">
+            <div class="title-group">
+                <h1 id="dashboard-title">Đang tải...</h1>
+                <p>Cung cấp bởi Wyckoff-VSA Engine & TradingView Lightweight Charts</p>
+            </div>
+            
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div class="timeframe-selector">
+                    <button class="timeframe-btn active" id="tf-daily">Daily</button>
+                    <button class="timeframe-btn" id="tf-minute" disabled>Minute</button>
+                </div>
+                <div id="current-ticker-badge" class="ticker-badge">-</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left Chart Card -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title" id="chart-subtitle">
+                        Biểu đồ nến OHLCV & Volume
+                    </div>
+                </div>
+                <div id="chart" class="chart-container"></div>
+            </div>
+
+            <!-- Right Alert List Panel -->
+            <div class="signals-panel">
+                <div class="panel-card">
+                    <h3 class="section-title">Danh sách Tín Hiệu (Backtest)</h3>
+                    <div id="signals-list" class="signals-list">
+                        <div class="empty-state">
+                            <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p>Nhấn nút Quét để tìm Spring/Upthrust</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Analytics Section -->
+        <div class="analytics-section" id="analytics-section" style="display: none; margin-top: 10px;">
+            <h3 class="section-title" style="margin-bottom: 12px;">Hiệu suất Chiến lược (Trade Simulation - R:R 1:2, Rủi ro 2% NAV)</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Tổng Lợi Nhuận</div>
+                    <div class="stat-value" id="stats-pnl">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Tỷ Lệ Thắng (Win Rate)</div>
+                    <div class="stat-value" id="stats-winrate">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Hệ số Lợi Nhuận (Profit Factor)</div>
+                    <div class="stat-value" id="stats-pf">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Tổng Số Lệnh</div>
+                    <div class="stat-value" id="stats-total">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Sụt Giảm Tài Khoản (Max DD)</div>
+                    <div class="stat-value" id="stats-maxdd">-</div>
+                </div>
+            </div>
+
+            <div class="trade-log-card">
+                <h3 class="section-title" style="margin-bottom: 12px;">Nhật Ký Giao Dịch Chi Tiết (Trade Log)</h3>
+                <div style="overflow-x: auto;">
+                    <table class="trade-table" id="trade-table">
+                        <thead>
+                            <tr>
+                                <th>Mã CP</th>
+                                <th>Ngày mua</th>
+                                <th>Giá mua</th>
+                                <th>Ngưỡng SL</th>
+                                <th>Ngưỡng TP</th>
+                                <th>Số lượng</th>
+                                <th>Giá trị mua</th>
+                                <th>Ngày bán</th>
+                                <th>Giá bán</th>
+                                <th>Kết quả</th>
+                                <th>Lợi nhuận (%)</th>
+                                <th>NAV cuối</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trade-log-body">
+                            <tr>
+                                <td colspan="12" style="text-align: center; color: var(--color-text-muted);">Không có giao dịch nào được thực hiện.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Javascript Code -->
+    <script>
+        const API_BASE = "http://localhost:8000";
+
+        let currentTicker = "";
+        let currentTimeframe = "daily"; // 'daily' or 'minute'
+        let currentSelectedDate = ""; // for minute drill down
+        
+        let chart = null;
+        let candleSeries = null;
+        let volumeSeries = null;
+        
+        // Support and resistance lines
+        let supportLine = null;
+        let resistanceLine = null;
+
+        // Cache backtest signals globally
+        let currentBacktestSignals = [];
+
+        // Track available 1-minute dates loaded from the server
+        let availableMinuteDates = [];
+
+        // Elements
+        const tickerSelect = document.getElementById("ticker-select");
+        const datesList = document.getElementById("dates-list");
+        const dashboardTitle = document.getElementById("dashboard-title");
+        const currentTickerBadge = document.getElementById("current-ticker-badge");
+        const tfDailyBtn = document.getElementById("tf-daily");
+        const tfMinuteBtn = document.getElementById("tf-minute");
+        const runBacktestBtn = document.getElementById("run-backtest-btn");
+        const signalsList = document.getElementById("signals-list");
+        const chartSubtitle = document.getElementById("chart-subtitle");
+
+        // Hỗ trợ / kháng cự values
+        const trLowValEl = document.getElementById("tr-low-val");
+        const trHighValEl = document.getElementById("tr-high-val");
+
+        // Setup chart initially
+        function initChart() {
+            const chartElement = document.getElementById("chart");
+            chartElement.innerHTML = ""; // Clear
+            supportLine = null;
+            resistanceLine = null;
+
+            chart = LightweightCharts.createChart(chartElement, {
+                width: chartElement.clientWidth,
+                height: chartElement.clientHeight,
+                layout: {
+                    background: { type: 'solid', color: '#0a0b0e' },
+                    textColor: '#9ca3af',
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
+                    horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                },
+                timeScale: {
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                    timeVisible: currentTimeframe === "minute",
+                },
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#10b981',
+                downColor: '#f43f5e',
+                borderVisible: false,
+                wickUpColor: '#10b981',
+                wickDownColor: '#f43f5e',
+            });
+
+            volumeSeries = chart.addHistogramSeries({
+                color: '#7c3aed',
+                priceFormat: {
+                    type: 'volume',
+                },
+                priceScaleId: '', // Set overlay mode
+            });
+
+            // Adjust volume scale to occupy bottom 25% of the chart
+            chart.priceScale('').applyOptions({
+                scaleMargins: {
+                    top: 0.75,
+                    bottom: 0,
+                },
+            });
+
+            // Auto resize chart
+            window.addEventListener('resize', () => {
+                chart.resize(chartElement.clientWidth, chartElement.clientHeight);
+            });
+        }
+
+        // Fetch tickers list on load
+        async function fetchTickers() {
+            try {
+                const response = await fetch(`${API_BASE}/api/tickers`);
+                const tickers = await response.json();
+                tickerSelect.innerHTML = tickers.map(t => `<option value="${t}">${t}</option>`).join("");
+                if (tickers.length > 0) {
+                    selectTicker(tickers[0]);
+                }
+            } catch (e) {
+                console.error("Error fetching tickers:", e);
+                tickerSelect.innerHTML = `<option value="">Lỗi kết nối</option>`;
+            }
+        }
+
+        // On select Ticker
+        async function selectTicker(ticker) {
+            currentTicker = ticker;
+            currentTickerBadge.innerText = ticker;
+            dashboardTitle.innerText = `${ticker} — Wyckoff Analytics`;
+            
+            // Set daily active timeframe
+            currentTimeframe = "daily";
+            tfDailyBtn.classList.add("active");
+            tfMinuteBtn.classList.remove("active");
+            tfMinuteBtn.disabled = true;
+
+            // Hide analytics section on ticker switch
+            const analyticsEl = document.getElementById("analytics-section");
+            if (analyticsEl) analyticsEl.style.display = "none";
+
+            await Promise.all([
+                fetchDailyData(ticker),
+                fetchMinuteDates(ticker),
+                fetchTradingRange(ticker)
+            ]);
+        }
+
+        // Fetch daily OHLCV
+        async function fetchDailyData(ticker) {
+            try {
+                const response = await fetch(`${API_BASE}/api/ticker/${ticker}/daily`);
+                const data = await response.json();
+                
+                // Format for chart: {time, open, high, low, close}
+                const candleData = data.map(d => ({
+                    time: d.time,
+                    open: parseFloat(d.open),
+                    high: parseFloat(d.high),
+                    low: parseFloat(d.low),
+                    close: parseFloat(d.close),
+                }));
+
+                const volumeData = data.map(d => ({
+                    time: d.time,
+                    value: parseInt(d.volume),
+                    color: d.close >= d.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)',
+                }));
+
+                initChart();
+                candleSeries.setData(candleData);
+                volumeSeries.setData(volumeData);
+                chartSubtitle.innerText = `Lịch sử giá D1 - ${ticker}`;
+                chart.timeScale().fitContent();
+
+            } catch (e) {
+                console.error("Error loading daily data:", e);
+            }
+        }
+
+        // Fetch Trading Range Low/High
+        async function fetchTradingRange(ticker) {
+            try {
+                const response = await fetch(`${API_BASE}/api/ticker/${ticker}/tr`);
+                const tr = await response.json();
+
+                trLowValEl.innerText = tr.tr_low.toLocaleString();
+                trHighValEl.innerText = tr.tr_high.toLocaleString();
+
+                // Draw support line at low
+                if (supportLine) chart.removeSeries(supportLine);
+                supportLine = chart.addLineSeries({
+                    color: '#10b981',
+                    lineWidth: 1.5,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: 'TR Support (Low)',
+                });
+
+                // Draw resistance line at high
+                if (resistanceLine) chart.removeSeries(resistanceLine);
+                resistanceLine = chart.addLineSeries({
+                    color: '#f43f5e',
+                    lineWidth: 1.5,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: 'TR Resistance (High)',
+                });
+
+            } catch (e) {
+                console.error("Error loading TR:", e);
+            }
+        }
+
+        // Fetch list of dates available in cache for minute data
+        async function fetchMinuteDates(ticker) {
+            try {
+                const response = await fetch(`${API_BASE}/api/ticker/${ticker}/minutes`);
+                const dates = await response.json();
+
+                // Store globally
+                availableMinuteDates = Array.isArray(dates) ? dates : [];
+
+                if (dates.length === 0) {
+                    datesList.innerHTML = `<div class="empty-state">Chưa lưu nến 1-phút cho ${ticker}</div>`;
+                    return;
+                }
+
+                datesList.innerHTML = dates.map(d => `
+                    <div class="date-item" onclick="selectMinuteDate('${d}')">
+                        ${d}
+                    </div>
+                `).join("");
+
+            } catch (e) {
+                console.error("Error fetching minute dates:", e);
+            }
+        }
+
+        // Click on specific date for 1m drilldown
+        async function selectMinuteDate(date) {
+            currentSelectedDate = date;
+            currentTimeframe = "minute";
+
+            // Toggle timeframe selector
+            tfDailyBtn.classList.remove("active");
+            tfMinuteBtn.classList.add("active");
+            tfMinuteBtn.disabled = false;
+
+            // Highlight in sidebar list
+            document.querySelectorAll(".date-item").forEach(el => {
+                if (el.innerText.trim() === date) el.classList.add("active");
+                else el.classList.remove("active");
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/api/ticker/${currentTicker}/minute/${date}`);
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                }
+
+                const candleData = data.map(d => ({
+                    time: parseInt(d.time),
+                    open: parseFloat(d.open),
+                    high: parseFloat(d.high),
+                    low: parseFloat(d.low),
+                    close: parseFloat(d.close),
+                    time_label: d.time_label // Preserve time_label
+                }));
+
+                const volumeData = data.map(d => ({
+                    time: parseInt(d.time),
+                    value: parseInt(d.volume),
+                    color: d.close >= d.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)',
+                }));
+
+                initChart();
+                candleSeries.setData(candleData);
+                volumeSeries.setData(volumeData);
+                chartSubtitle.innerText = `Nến 1-Phút ngày ${date} - ${currentTicker}`;
+                chart.timeScale().fitContent();
+
+                // Draw markers on minute chart
+                plotMinuteMarkers(date, candleData);
+
+            } catch (e) {
+                console.error("Error loading minute data:", e);
+                alert(`Không thể tải dữ liệu nến 1-phút cho ngày ${date}: ${e.message}`);
+                // Revert UI timeline changes to daily
+                currentTimeframe = "daily";
+                tfDailyBtn.classList.add("active");
+                tfMinuteBtn.classList.remove("active");
+                tfMinuteBtn.disabled = true;
+                fetchDailyData(currentTicker);
+            }
+        }
+
+        // Plot markers on the 1-minute chart matching the slot times
+        function plotMinuteMarkers(date, candleData) {
+            if (!currentBacktestSignals.length) return;
+            const daySignals = currentBacktestSignals.filter(s => s.date === date);
+            if (!daySignals.length) return;
+
+            const slotTimes = {
+                "H1_1": "10:15",
+                "H1_2": "11:30",
+                "H1_3": "14:00",
+                "H1_4": "14:45",
+                "H4_AM": "13:00",
+                "H4_PM": "14:45",
+                "D1": "14:45"
+            };
+
+            // Group signals by target time to avoid overlaps
+            const groupedByTime = {};
+            daySignals.forEach(s => {
+                const targetTimeStr = slotTimes[s.slot_id];
+                if (!targetTimeStr) return;
+
+                const targetCandle = candleData.find(c => c.time_label === targetTimeStr);
+                if (targetCandle) {
+                    if (!groupedByTime[targetCandle.time]) {
+                        groupedByTime[targetCandle.time] = {
+                            candle: targetCandle,
+                            signals: []
+                        };
+                    }
+                    groupedByTime[targetCandle.time].signals.push(s);
+                }
+            });
+
+            const markers = [];
+            Object.keys(groupedByTime).forEach(timeKey => {
+                const group = groupedByTime[timeKey];
+                const time = parseInt(timeKey);
+                
+                const hasSpring = group.signals.some(s => s.type === "SPRING_RUT_CHAN");
+                const hasUpthrust = group.signals.some(s => s.type === "UPTHRUST_BAY_GIA");
+                const hasSL = group.signals.some(s => s.type === "THUNG_SL");
+
+                let color = '';
+                let position = '';
+                let shape = '';
+                let text = '';
+
+                if (hasSpring) {
+                    color = '#10b981';
+                    position = 'belowBar';
+                    shape = 'arrowUp';
+                    const tfs = group.signals.filter(s => s.type === "SPRING_RUT_CHAN").map(s => s.timeframe);
+                    const uniqueTfs = [...new Set(tfs)];
+                    text = `Spring (${uniqueTfs.join(",")})`;
+                } else if (hasUpthrust || hasSL) {
+                    const isOnlySL = !hasUpthrust;
+                    color = isOnlySL ? '#f59e0b' : '#f43f5e';
+                    position = 'aboveBar';
+                    shape = 'arrowDown';
+                    
+                    const parts = [];
+                    const utSignals = group.signals.filter(s => s.type === "UPTHRUST_BAY_GIA");
+                    if (utSignals.length > 0) {
+                        const utTfs = [...new Set(utSignals.map(s => s.timeframe))];
+                        parts.push(`UTAD (${utTfs.join(",")})`);
+                    }
+                    
+                    const slSignals = group.signals.filter(s => s.type === "THUNG_SL");
+                    if (slSignals.length > 0) {
+                        const slTfs = [...new Set(slSignals.map(s => s.timeframe))];
+                        parts.push(`SL (${slTfs.join(",")})`);
+                    }
+                    
+                    text = parts.join(" / ");
+                }
+
+                markers.push({ time, position, color, shape, text });
+            });
+
+            if (markers.length > 0) {
+                candleSeries.setMarkers(markers);
+            }
+        }
+
+        // Run dynamic backtest and fetch signals
+        async function runBacktest() {
+            if (!currentTicker) return;
+            runBacktestBtn.innerText = "Đang quét...";
+            runBacktestBtn.disabled = true;
+
+            try {
+                // Quét cả WATCH (Spring) và HOLD (Upthrust/SL)
+                const [watchRes, holdRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/ticker/${currentTicker}/backtest?status=WATCH`),
+                    fetch(`${API_BASE}/api/ticker/${currentTicker}/backtest?status=HOLD`)
+                ]);
+                
+                const watchSignals = await watchRes.json();
+                const holdSignals = await holdRes.json();
+
+                // Merge and sort signals
+                const allSignals = [...watchSignals, ...holdSignals].sort((a,b) => a.date.localeCompare(b.date));
+
+                if (allSignals.length === 0) {
+                    signalsList.innerHTML = `
+                        <div class="empty-state">
+                            <p>Không tìm thấy tín hiệu nào trong giai đoạn backtest (01/06 - 19/06).</p>
+                        </div>`;
+                    runBacktestBtn.innerText = "Quét Tín Hiệu Backtest";
+                    runBacktestBtn.disabled = false;
+                    return;
+                }
+
+                // Store signals globally
+                currentBacktestSignals = allSignals;
+
+                signalsList.innerHTML = allSignals.map(s => {
+                    const isSpring = s.type === "SPRING_RUT_CHAN";
+                    const isUpthrust = s.type === "UPTHRUST_BAY_GIA";
+                    const isSL = s.type === "THUNG_SL";
+                    
+                    let badgeClass = isSpring ? "spring" : (isUpthrust ? "upthrust" : "sl");
+                    let itemClass = isSpring ? "spring" : (isUpthrust ? "upthrust" : "sl");
+                    let typeText = isSpring ? "Spring" : (isUpthrust ? "Upthrust" : "Thủng SL");
+                    
+                    let metaHTML = "";
+                    if (isSL) {
+                        metaHTML = `
+                            <span>Ngưỡng SL: ${s.sl_price.toLocaleString()} (${s.sl_source === 'manual' ? 'Thủ công' : 'Tự động'})</span>
+                        `;
+                    } else {
+                        metaHTML = `
+                            <span>Râu nến: ${s.shadow_pct}%</span>
+                            <span>Tỷ lệ Vol: +${s.vol_ratio_pct}%</span>
+                        `;
+                    }
+                    
+                    return `
+                        <div class="signal-item ${itemClass}" onclick="focusSignalOnChart('${s.date}', '${s.timeframe}')">
+                            <div class="signal-header">
+                                <span class="signal-badge ${badgeClass}">${typeText} (${s.timeframe})</span>
+                                <span class="signal-time">${s.date} ${s.slot_id}</span>
+                            </div>
+                            <div class="signal-price">Giá: ${s.current_price.toLocaleString()}</div>
+                            <div class="signal-meta">
+                                ${metaHTML}
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+
+                // Add markers to daily chart (if in daily mode)
+                if (currentTimeframe === "daily") {
+                    // Group by date to avoid duplicate overlapping markers
+                    const grouped = {};
+                    allSignals.forEach(s => {
+                        if (!grouped[s.date]) grouped[s.date] = [];
+                        grouped[s.date].push(s);
+                    });
+
+                    const markers = Object.keys(grouped).map(date => {
+                        const daySignals = grouped[date];
+                        const hasSpring = daySignals.some(s => s.type === "SPRING_RUT_CHAN");
+                        const hasUpthrust = daySignals.some(s => s.type === "UPTHRUST_BAY_GIA");
+                        const hasSL = daySignals.some(s => s.type === "THUNG_SL");
+
+                        let color = '#10b981';
+                        let position = 'belowBar';
+                        let shape = 'arrowUp';
+                        let text = '';
+
+                        if (hasSpring) {
+                            color = '#10b981';
+                            position = 'belowBar';
+                            shape = 'arrowUp';
+                            const tfs = daySignals.filter(s => s.type === "SPRING_RUT_CHAN").map(s => s.timeframe === "D1" ? "D1" : `${s.timeframe}_${s.slot_id}`);
+                            const uniqueTfs = [...new Set(tfs)];
+                            text = `Spring (${uniqueTfs.join(",")})`;
+                        } else if (hasUpthrust || hasSL) {
+                            color = '#f43f5e';
+                            position = 'aboveBar';
+                            shape = 'arrowDown';
+                            
+                            const labelParts = [];
+                            const utSignals = daySignals.filter(s => s.type === "UPTHRUST_BAY_GIA");
+                            if (utSignals.length > 0) {
+                                const utTfs = [...new Set(utSignals.map(s => s.timeframe))];
+                                labelParts.push(`UTAD (${utTfs.join(",")})`);
+                            }
+                            
+                            const slSignals = daySignals.filter(s => s.type === "THUNG_SL");
+                            if (slSignals.length > 0) {
+                                const slTfs = [...new Set(slSignals.map(s => s.timeframe))];
+                                labelParts.push(`SL (${slTfs.join(",")})`);
+                            }
+                            
+                            text = labelParts.join(" / ");
+                        }
+
+                        return { time: date, position, color, shape, text };
+                    });
+
+                    candleSeries.setMarkers(markers);
+                }
+
+                // Chạy mô phỏng hiệu suất giao dịch tự động
+                await runSimulation();
+
+            } catch (e) {
+                console.error("Error running backtest:", e);
+                signalsList.innerHTML = `<div class="empty-state"><p>Lỗi khi quét tín hiệu.</p></div>`;
+            } finally {
+                runBacktestBtn.innerText = "Quét Tín Hiệu Backtest";
+                runBacktestBtn.disabled = false;
+            }
+        }
+
+        // Fetch and display trade simulation analytics
+        async function runSimulation() {
+            if (!currentTicker) return;
+            
+            const analyticsSection = document.getElementById("analytics-section");
+            const tradeLogBody = document.getElementById("trade-log-body");
+            
+            if (!analyticsSection || !tradeLogBody) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ticker/${currentTicker}/simulate`);
+                
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Show analytics section
+                analyticsSection.style.display = "block";
+                
+                // Populate metrics
+                const statsPnl = document.getElementById("stats-pnl");
+                const statsWinrate = document.getElementById("stats-winrate");
+                const statsPf = document.getElementById("stats-pf");
+                const statsTotal = document.getElementById("stats-total");
+                const statsMaxdd = document.getElementById("stats-maxdd");
+                
+                const pnl = data.net_return_pct;
+                statsPnl.innerText = `${pnl >= 0 ? '+' : ''}${pnl}%`;
+                statsPnl.className = `stat-value ${pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}`;
+                
+                statsWinrate.innerText = `${data.win_rate}%`;
+                statsPf.innerText = data.profit_factor === 999.0 ? 'N/A' : data.profit_factor.toFixed(2);
+                statsTotal.innerText = data.total_trades;
+                statsMaxdd.innerText = `-${data.max_drawdown_pct}%`;
+                
+                // Populate Trade Table
+                if (data.trades.length === 0) {
+                    tradeLogBody.innerHTML = `
+                        <tr>
+                            <td colspan="12" style="text-align: center; color: var(--color-text-muted);">
+                                Không có giao dịch nào được kích hoạt (không có tín hiệu Spring).
+                            </td>
+                        </tr>`;
+                } else {
+                    tradeLogBody.innerHTML = data.trades.map(t => {
+                        const isWin = t.result === "WIN";
+                        const isLoss = t.result === "LOSS";
+                        const isHold = t.result === "HOLD";
+                        
+                        let badgeClass = isWin ? "win" : (isLoss ? "loss" : "hold");
+                        let resultText = isWin ? "Thắng (TP)" : (isLoss ? "Thua (SL)" : "Đang giữ");
+                        
+                        let pnlClass = t.pnl_pct >= 0 ? "pnl-positive" : "pnl-negative";
+                        let pnlText = `${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct}%`;
+                        
+                        return `
+                            <tr>
+                                <td><strong>${t.ticker}</strong></td>
+                                <td>${t.entry_date}</td>
+                                <td>${t.entry_price.toLocaleString()}</td>
+                                <td>${t.sl.toLocaleString()}</td>
+                                <td>${t.tp.toLocaleString()}</td>
+                                <td>${t.shares.toLocaleString()}</td>
+                                <td>${t.cost.toLocaleString()}đ</td>
+                                <td>${t.exit_date}</td>
+                                <td>${t.exit_price > 0 ? t.exit_price.toLocaleString() : '-'}</td>
+                                <td><span class="result-badge ${badgeClass}">${resultText}</span></td>
+                                <td><span class="${pnlClass}">${pnlText}</span></td>
+                                <td>${t.ending_nav.toLocaleString()}đ</td>
+                            </tr>
+                        `;
+                    }).join("");
+                }
+                
+            } catch (e) {
+                console.error("Error running simulation:", e);
+                analyticsSection.style.display = "none";
+            }
+        }
+
+        // Focus and scroll to signal date
+        function focusSignalOnChart(dateStr, timeframe) {
+            const hasMinuteData = availableMinuteDates.includes(dateStr);
+
+            if (timeframe === "D1" || !hasMinuteData) {
+                const focusDaily = () => {
+                    try {
+                        const date = new Date(dateStr);
+                        const fromDate = new Date(date);
+                        fromDate.setDate(date.getDate() - 15);
+                        const toDate = new Date(date);
+                        toDate.setDate(date.getDate() + 15);
+                        
+                        const fromStr = fromDate.toISOString().split('T')[0];
+                        const toStr = toDate.toISOString().split('T')[0];
+                        
+                        chart.timeScale().setVisibleRange({
+                            from: fromStr,
+                            to: toStr
+                        });
+                    } catch (e) {
+                        console.error("Error focusing on daily date:", e);
+                    }
+                };
+
+                if (currentTimeframe !== "daily") {
+                    currentTimeframe = "daily";
+                    tfDailyBtn.classList.add("active");
+                    tfMinuteBtn.classList.remove("active");
+                    fetchDailyData(currentTicker).then(() => {
+                        setTimeout(focusDaily, 100);
+                    });
+                } else {
+                    focusDaily();
+                }
+            } else {
+                selectMinuteDate(dateStr);
+            }
+        }
+
+        // Toggle Timeframes manually
+        tfDailyBtn.addEventListener("click", () => {
+            if (currentTimeframe !== "daily") {
+                currentTimeframe = "daily";
+                tfDailyBtn.classList.add("active");
+                tfMinuteBtn.classList.remove("active");
+                fetchDailyData(currentTicker);
+            }
+        });
+
+        // Event listeners
+        tickerSelect.addEventListener("change", (e) => {
+            selectTicker(e.target.value);
+        });
+
+        runBacktestBtn.addEventListener("click", runBacktest);
+
+        // Bootstrap on load
+        window.addEventListener("load", () => {
+            fetchTickers();
+        });
+    </script>
+</body>
+</html>
