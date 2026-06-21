@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   web:
@@ -9,6 +8,8 @@ services:
       - "8000:8000"
     volumes:
       - ./data_cache:/app/data_cache
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -21,6 +22,8 @@ services:
     command: python src/scheduler.py
     volumes:
       - ./data_cache:/app/data_cache
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
