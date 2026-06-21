@@ -7,9 +7,9 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from .market_api_adapter import MarketDataProvider, create_market_data_provider
-from .telegram_alerts import send_telegram
-from .wyckoff import (
+from src.market_api_adapter import MarketDataProvider, create_market_data_provider
+from src.telegram_alerts import send_telegram
+from src.wyckoff import (
     _normalize_ticker_data,
     _parse_time,
     calculate_trading_range,
@@ -77,7 +77,7 @@ class MarketMonitor:
         if not self.watchlist_url:
             return self.default_watchlist
 
-        from .scheduler import read_watchlist_from_csv
+        from src.scheduler import read_watchlist_from_csv
         items = read_watchlist_from_csv(self.watchlist_url)
         return items if items else self.default_watchlist
 
