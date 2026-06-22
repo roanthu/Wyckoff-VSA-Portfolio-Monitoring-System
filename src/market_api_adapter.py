@@ -13,8 +13,8 @@ import requests
 # Retry helper
 # ---------------------------------------------------------------------------
 
-def _retry_with_backoff(max_retries: int = 3, base_delay: float = 2.0):
-    """Decorator that retries a function with exponential backoff (2/4/8s)."""
+def _retry_with_backoff(max_retries: int = 5, base_delay: float = 2.0):
+    """Decorator that retries a function with backoff and rate limit handling."""
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -23,6 +23,12 @@ def _retry_with_backoff(max_retries: int = 3, base_delay: float = 2.0):
                 try:
                     return func(*args, **kwargs)
                 except Exception as exc:
+                    err_str = str(exc).lower()
+                    if "chờ" in err_str or "wait" in err_str or "giới hạn" in err_str:
+                        print(f"Rate limit hit! Sleeping for 45 seconds to reset quota...")
+                        time.sleep(45)
+                        continue
+                    
                     if attempt == max_retries:
                         raise
                     print(f"{func.__name__} failed ({attempt}/{max_retries}): {exc}. Retrying in {delay}s...")
