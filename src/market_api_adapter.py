@@ -24,9 +24,9 @@ def _retry_with_backoff(max_retries: int = 5, base_delay: float = 2.0):
                     return func(*args, **kwargs)
                 except Exception as exc:
                     err_str = str(exc).lower()
-                    if "chờ" in err_str or "wait" in err_str or "giới hạn" in err_str:
-                        print(f"Rate limit hit! Sleeping for 45 seconds to reset quota...")
-                        time.sleep(45)
+                    if any(k in err_str for k in ["chờ", "wait", "giới hạn", "429", "too many requests", "rate limit"]):
+                        print(f"Rate limit hit (429)! Sleeping for 15 seconds to reset quota...")
+                        time.sleep(15)
                         continue
                     
                     if attempt == max_retries:
@@ -221,6 +221,9 @@ class VnstockMarketAPIAdapter(MarketDataProvider):
                     "price": None,
                     "volume": None,
                 }
+            
+            # Anti-burst pace limit
+            time.sleep(0.3)
         return result
 
     # -- Trade history (tick-by-tick) ---------------------------------------

@@ -183,6 +183,7 @@ class MarketMonitor:
             # Get current prices for all tickers
             tickers = [item["ticker"] for item in watchlist]
             snapshots = self.adapter.get_snapshot(tickers)
+            success_count = 0
 
             for item in watchlist:
                 ticker = item["ticker"]
@@ -330,6 +331,15 @@ class MarketMonitor:
                             message = self._build_alert_message(ticker, status, signal)
                             self._send_alert(message)
                             self.state.mark_alerted(anti_spam_key)
+
+                # If we get here without hitting a continue, the ticker was successfully processed
+                success_count += 1
+                
+                # Pace requests to avoid 429 Too Many Requests API limits (bursts)
+                time.sleep(1.0)
+
+            if len(watchlist) > 0 and success_count == 0:
+                raise Exception("Systemic failure: All tickers failed to process in this cycle.")
 
             self.state.consecutive_failures = 0
             self.state.admin_alert_sent = False
