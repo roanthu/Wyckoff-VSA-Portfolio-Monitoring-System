@@ -1,0 +1,54 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Biểu đồ FPT - DNSE API</title>
+        <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+        <style>
+            body { margin: 0; padding: 20px; font-family: sans-serif; background: #131722; color: #d1d4dc; }
+            h2 { text-align: center; font-weight: normal; }
+            #chart { width: 100%; height: 600px; border: 1px solid #2B2B43; border-radius: 8px; overflow: hidden; }
+            .footer { text-align: center; margin-top: 15px; color: #787b86; }
+        </style>
+    </head>
+    <body>
+        <h2>Biểu đồ Nến Nhật - Mã: <strong style="color: #2962FF">FPT</strong> (Nguồn: DNSE OpenAPI)</h2>
+        <div id="chart"></div>
+        <div class="footer">Hãy đối chiếu biểu đồ này với App EntradeX hoặc FireAnt để kiểm chứng nhé!</div>
+        <script>
+            const chartData = [{"time": "2026-05-04", "open": 73.88, "high": 74.08, "low": 72.6, "close": 72.7}, {"time": "2026-05-05", "open": 72.7, "high": 73.49, "low": 71.81, "close": 73.29}, {"time": "2026-05-06", "open": 73.19, "high": 73.19, "low": 72.01, "close": 72.3}, {"time": "2026-05-07", "open": 72.9, "high": 73.29, "low": 72.01, "close": 72.01}, {"time": "2026-05-08", "open": 72.21, "high": 72.3, "low": 70.92, "close": 70.92}, {"time": "2026-05-11", "open": 70.73, "high": 70.73, "low": 69.05, "close": 69.05}, {"time": "2026-05-12", "open": 69.15, "high": 70.53, "low": 69.05, "close": 69.64}, {"time": "2026-05-13", "open": 69.64, "high": 70.53, "low": 69.05, "close": 69.74}, {"time": "2026-05-14", "open": 70.13, "high": 74.28, "low": 70.04, "close": 72.9}, {"time": "2026-05-15", "open": 73.19, "high": 73.19, "low": 71.71, "close": 71.91}, {"time": "2026-05-18", "open": 71.91, "high": 74.28, "low": 71.02, "close": 73.88}, {"time": "2026-05-19", "open": 73.98, "high": 74.77, "low": 73.29, "close": 73.49}, {"time": "2026-05-20", "open": 73.78, "high": 77.43, "low": 71.81, "close": 76.64}, {"time": "2026-05-21", "open": 76.64, "high": 76.84, "low": 74.67, "close": 75.46}, {"time": "2026-05-22", "open": 75.76, "high": 76.55, "low": 74.08, "close": 74.08}, {"time": "2026-05-25", "open": 73.59, "high": 74.57, "low": 72.5, "close": 72.5}, {"time": "2026-05-26", "open": 72.6, "high": 73.59, "low": 72.6, "close": 73.49}, {"time": "2026-05-27", "open": 73.49, "high": 74.28, "low": 72.11, "close": 72.6}, {"time": "2026-05-28", "open": 72.8, "high": 73.1, "low": 71.2, "close": 71.2}, {"time": "2026-05-29", "open": 71.2, "high": 72.5, "low": 70.8, "close": 71.6}, {"time": "2026-06-01", "open": 72.2, "high": 73.4, "low": 72.1, "close": 72.9}, {"time": "2026-06-02", "open": 73.0, "high": 75.6, "low": 73.0, "close": 74.8}, {"time": "2026-06-03", "open": 75.1, "high": 77.7, "low": 75.0, "close": 76.5}, {"time": "2026-06-04", "open": 76.7, "high": 77.2, "low": 75.8, "close": 76.1}, {"time": "2026-06-05", "open": 76.0, "high": 76.0, "low": 74.3, "close": 75.0}, {"time": "2026-06-08", "open": 73.7, "high": 74.5, "low": 72.8, "close": 72.9}, {"time": "2026-06-09", "open": 73.4, "high": 74.2, "low": 72.6, "close": 73.7}, {"time": "2026-06-10", "open": 73.5, "high": 74.5, "low": 73.5, "close": 74.2}, {"time": "2026-06-11", "open": 73.9, "high": 73.9, "low": 73.1, "close": 73.1}, {"time": "2026-06-12", "open": 73.6, "high": 74.3, "low": 73.5, "close": 73.5}, {"time": "2026-06-15", "open": 74.4, "high": 75.2, "low": 73.5, "close": 73.6}, {"time": "2026-06-16", "open": 73.7, "high": 74.2, "low": 73.1, "close": 73.2}, {"time": "2026-06-17", "open": 73.3, "high": 73.4, "low": 72.2, "close": 72.3}, {"time": "2026-06-18", "open": 72.3, "high": 72.3, "low": 71.5, "close": 71.6}, {"time": "2026-06-19", "open": 71.6, "high": 71.8, "low": 70.8, "close": 71.5}, {"time": "2026-06-22", "open": 71.5, "high": 71.7, "low": 70.3, "close": 70.6}, {"time": "2026-06-23", "open": 70.9, "high": 71.8, "low": 70.7, "close": 70.8}, {"time": "2026-06-24", "open": 71.0, "high": 71.2, "low": 70.1, "close": 70.8}, {"time": "2026-06-25", "open": 71.0, "high": 71.7, "low": 70.8, "close": 71.0}, {"time": "2026-06-26", "open": 71.3, "high": 71.3, "low": 70.3, "close": 70.8}, {"time": "2026-06-29", "open": 70.7, "high": 70.8, "low": 70.2, "close": 70.4}, {"time": "2026-06-30", "open": 70.5, "high": 70.8, "low": 70.2, "close": 70.2}, {"time": "2026-07-01", "open": 70.4, "high": 73.2, "low": 70.3, "close": 72.9}];
+            const chartContainer = document.getElementById('chart');
+            const chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.clientWidth,
+                height: 600,
+                layout: {
+                    background: { type: 'solid', color: '#131722' },
+                    textColor: '#d1d4dc',
+                },
+                grid: {
+                    vertLines: { color: '#2B2B43' },
+                    horzLines: { color: '#2B2B43' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: '#2B2B43',
+                },
+                timeScale: {
+                    borderColor: '#2B2B43',
+                },
+            });
+            
+            const candlestickSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+                wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+            });
+            
+            candlestickSeries.setData(chartData);
+            chart.timeScale().fitContent();
+        </script>
+    </body>
+    </html>
+    

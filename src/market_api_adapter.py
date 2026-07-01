@@ -303,6 +303,154 @@ class VnstockMarketAPIAdapter(MarketDataProvider):
 
 
 # ---------------------------------------------------------------------------
+# DNSE Open API Adapter
+# ---------------------------------------------------------------------------
+import hmac
+import hashlib
+import base64
+import uuid
+from email.utils import formatdate
+
+class DnseMarketAPIAdapter(MarketDataProvider):
+    """Adapter for DNSE OpenAPI."""
+    
+    def __init__(self, **kwargs: Any) -> None:
+        self.api_key = os.environ.get("DNSE_API_KEY", "").strip()
+        self.secret_key = os.environ.get("DNSE_SECRET_KEY", "").strip()
+        self.base_url = "https://openapi.dnse.com.vn"
+        self._time_delta = datetime.timedelta(seconds=0)
+        self._sync_time()
+
+    def _sync_time(self) -> None:
+        import urllib.request
+        try:
+            req = urllib.request.Request(self.base_url)
+            with urllib.request.urlopen(req) as resp:
+                pass
+        except Exception as e:
+            if hasattr(e, 'headers'):
+                server_date_str = e.headers.get("Date")
+                if server_date_str:
+                    server_time = datetime.datetime.strptime(server_date_str, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=datetime.timezone.utc)
+                    local_time = datetime.datetime.now(datetime.timezone.utc)
+                    self._time_delta = server_time - local_time
+
+    def _get_headers(self, method: str, path: str) -> Dict[str, str]:
+        aux_date = (datetime.datetime.now(datetime.timezone.utc) + self._time_delta).strftime("%a, %d %b %Y %H:%M:%S +0000")
+        nonce = uuid.uuid4().hex
+        
+        # Bước 1: Xây dựng Signing String
+        signing_string = f"(request-target): {method.lower()} {path}\ndate: {aux_date}\nnonce: {nonce}"
+        
+        # Bước 2: Tạo chuỗi Signature (ENCODED_SIGNATURE)
+        raw_bytes = hmac.new(
+            key=self.secret_key.encode('utf-8') if self.secret_key else b"",
+            msg=signing_string.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
+        
+        b64_sig = base64.b64encode(raw_bytes).decode('utf-8')
+        # URL-encode các ký tự đặc biệt theo yêu cầu của DNSE
+        encoded_signature = b64_sig.replace("+", "%2B").replace("/", "%2F").replace("=", "%3D")
+        
+        # Bước 3: Đóng gói Header X-Signature
+        x_signature = f'Signature keyId="{self.api_key}",algorithm="hmac-sha256",headers="(request-target) date",signature="{encoded_signature}",nonce="{nonce}"'
+        
+        return {
+            "x-api-key": self.api_key or "",
+            "Date": aux_date,
+            "x-Signature": x_signature
+        }
+
+    @_retry_with_backoff(max_retries=3, base_delay=2.0)
+    def _fetch_ohlc(self, ticker: str, resolution: str, from_ts: int, to_ts: int) -> pd.DataFrame:
+        import urllib.parse
+        import urllib.request
+        import json
+        path = "/price/ohlc"
+        params = {
+            "symbol": ticker,
+            "type": "STOCK",
+            "resolution": resolution,
+            "from": str(from_ts),
+            "to": str(to_ts)
+        }
+        query_string = urllib.parse.urlencode(params)
+        full_path = f"{path}?{query_string}"
+        url = f"{self.base_url}{full_path}"
+        
+        headers = self._get_headers("GET", path)
+        
+        # Dùng urllib.request để tránh việc thư viện requests tự động sửa Header
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode("utf-8")
+            raise Exception(f"HTTP {e.code}: {err_msg}")
+            
+        if not data or not data.get("t"):
+            print(f"DEBUG: Empty data received from DNSE: {data}")
+            return pd.DataFrame()
+            
+        df = pd.DataFrame({
+            "time": pd.to_datetime(data["t"], unit="s", utc=True).tz_convert("Asia/Ho_Chi_Minh").tz_localize(None),
+            "open": data.get("o", []),
+            "high": data.get("h", []),
+            "low": data.get("l", []),
+            "close": data.get("c", []),
+            "volume": data.get("v", [])
+        })
+        return df
+
+    def get_snapshot(self, tickers: Iterable[str]) -> Dict[str, Any]:
+        import urllib.request
+        import json
+        result = {}
+        for ticker in tickers:
+            try:
+                path = f"/price/{ticker}/trades/latest"
+                url = f"{self.base_url}{path}"
+                headers = self._get_headers("GET", path)
+                req = urllib.request.Request(url, headers=headers)
+                
+                with urllib.request.urlopen(req) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    
+                trades = data.get("trades", [])
+                if trades:
+                    result[ticker] = {"symbol": ticker, "currentPrice": float(trades[0].get("matchPrice", 0))}
+                else:
+                    result[ticker] = {"symbol": ticker, "currentPrice": None}
+            except Exception as e:
+                print(f"DNSE get_snapshot failed for {ticker}: {e}")
+                result[ticker] = {"symbol": ticker, "currentPrice": None}
+            time.sleep(0.3)
+        return result
+
+    def get_minute_candles(self, ticker: str, date: str | None = None, interval: str = "1m") -> pd.DataFrame:
+        from zoneinfo import ZoneInfo
+        vn_tz = ZoneInfo("Asia/Ho_Chi_Minh")
+        now = datetime.datetime.now(tz=vn_tz)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        res = "1" if interval == "1m" else interval.replace("m", "")
+        return self._fetch_ohlc(ticker, resolution=res, from_ts=int(start.timestamp()), to_ts=int(now.timestamp()))
+
+    def get_daily_history(self, ticker: str, lookback_days: int = 90) -> pd.DataFrame:
+        from zoneinfo import ZoneInfo
+        vn_tz = ZoneInfo("Asia/Ho_Chi_Minh")
+        now = datetime.datetime.now(tz=vn_tz)
+        start = now - datetime.timedelta(days=lookback_days)
+        return self._fetch_ohlc(ticker, resolution="1D", from_ts=int(start.timestamp()), to_ts=int(now.timestamp()))
+
+    def get_trade_history(self, ticker: str, page: int = 1, size: int = 200) -> list[Any]:
+        return []
+
+    def stream_quotes(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        raise NotImplementedError("Use get_snapshot instead")
+
+# ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
 
@@ -317,6 +465,8 @@ def create_market_data_provider(provider: str | None = None, **kwargs: Any) -> M
     Defaults to 'vnstock' if not specified.
     """
     provider_name = (provider or os.environ.get("MARKET_DATA_PROVIDER", "vnstock")).strip().lower()
+    if provider_name == "dnse":
+        return DnseMarketAPIAdapter(**kwargs)
     if provider_name == "vnstock":
         source = kwargs.pop("source", os.environ.get("VNSTOCK_SOURCE", "VCI"))
         return VnstockMarketAPIAdapter(source=source, **kwargs)

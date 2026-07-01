@@ -340,7 +340,13 @@ class MarketMonitor:
                 time.sleep(1.0)
 
             if len(watchlist) > 0 and success_count == 0:
-                raise Exception("Systemic failure: All tickers failed to process in this cycle.")
+                # If market is closed, empty minute candles are expected. Don't raise systemic failure.
+                current_min = current_time.hour * 60 + current_time.minute
+                start_min = 9 * 60 + 15
+                if current_min < start_min or current_min > 15 * 60:
+                    print("Market is closed or just opened, skipping failure check.")
+                else:
+                    raise Exception("Systemic failure: All tickers failed to process in this cycle.")
 
             self.state.consecutive_failures = 0
             self.state.admin_alert_sent = False
