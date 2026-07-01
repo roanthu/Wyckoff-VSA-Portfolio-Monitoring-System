@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir tzdata
 
 # Copy source code
 COPY src/ ./src/
+COPY *.py ./
 
 # Set environment variables
 ENV PYTHONPATH=/app
