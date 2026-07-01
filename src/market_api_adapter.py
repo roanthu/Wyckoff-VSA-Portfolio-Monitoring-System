@@ -359,7 +359,9 @@ class DnseMarketAPIAdapter(MarketDataProvider):
         return {
             "x-api-key": self.api_key or "",
             "Date": aux_date,
-            "x-Signature": x_signature
+            "x-Signature": x_signature,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*"
         }
 
     @_retry_with_backoff(max_retries=3, base_delay=2.0)
