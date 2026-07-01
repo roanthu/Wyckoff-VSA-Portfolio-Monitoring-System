@@ -325,7 +325,7 @@ class DnseMarketAPIAdapter(MarketDataProvider):
         import urllib.request
         try:
             req = urllib.request.Request(self.base_url)
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 pass
         except Exception as e:
             if hasattr(e, 'headers'):
@@ -384,7 +384,7 @@ class DnseMarketAPIAdapter(MarketDataProvider):
         # Dùng urllib.request để tránh việc thư viện requests tự động sửa Header
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode("utf-8")
@@ -415,7 +415,7 @@ class DnseMarketAPIAdapter(MarketDataProvider):
                 headers = self._get_headers("GET", path)
                 req = urllib.request.Request(url, headers=headers)
                 
-                with urllib.request.urlopen(req) as resp:
+                with urllib.request.urlopen(req, timeout=10) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     
                 trades = data.get("trades", [])
